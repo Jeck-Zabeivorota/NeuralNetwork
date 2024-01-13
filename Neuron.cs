@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace Test.Neural_Network
@@ -7,37 +8,52 @@ namespace Test.Neural_Network
     {
         #region Fields
 
-        double[] Weights;
-        double Bias;
+        readonly List<double> LastOutputs = new List<double>();
 
-        public int WeightsLength => Weights.Length;
+        double[] InputWeights, OutputWeights;
+        double Bias;
 
         #endregion
 
 
         #region Methods
 
+        public void ClearMemory() => LastOutputs.Clear();
+
+
         //      [ Возвращение данных ]
         public double GetResult(double[] inputs)
         {
             double sum = 0;
-            
-            for (int i = 0; i < inputs.Length; i++)
-                sum += inputs[i] * Weights[i];
-            
-            sum += Bias;
 
-            return ActivationFunc(sum);
+            for (int i = 0; i < inputs.Length; i++)
+                sum += inputs[i] * InputWeights[i];
+
+            for (int i = 0; i < LastOutputs.Count; i++)
+                sum += LastOutputs[i] * OutputWeights[i];
+
+            sum += Bias;
+            double result = ActivationFunc(sum);
+
+            if (OutputWeights.Length > 0)
+            {
+                LastOutputs.Insert(0, result);
+                if (LastOutputs.Count > OutputWeights.Length) LastOutputs.RemoveAt(LastOutputs.Count - 1);
+            }
+
+            return result;
         }
 
         public Neuron Clone()
         {
             Neuron clone = new Neuron
             {
-                Weights = new double[Weights.Length],
+                InputWeights = new double[InputWeights.Length],
+                OutputWeights = new double[OutputWeights.Length],
                 Bias = Bias
             };
-            Weights.CopyTo(clone.Weights, 0);
+            InputWeights.CopyTo(clone.InputWeights, 0);
+            OutputWeights.CopyTo(clone.OutputWeights, 0);
 
             return clone;
         }
@@ -50,7 +66,7 @@ namespace Test.Neural_Network
 
         public double[] Training(double error, double[] lastInputs, double lastOutput, double learningRate)
         {
-            double[] inputsErrors = new double[Weights.Length];
+            double[] inputsErrors = new double[InputWeights.Length];
 
             // [ чем ближе выходное значение нейрона к 0 или 1 (в сигмоиде),
             //   тем меньше его подвижность (как железный шарик между магнитами) ]
@@ -59,14 +75,17 @@ namespace Test.Neural_Network
             // величина изменения = +-величина ошибки * изменяемость * сглаживание
             double gradient = error * Derivative(lastOutput) * learningRate;
 
-            for (int i = 0; i < Weights.Length; i++)
+            for (int i = 0; i < InputWeights.Length; i++)
             {
                 // распостранение ошибки на предыдущий слой с учётом влияния веса
-                inputsErrors[i] = error * Weights[i];
+                inputsErrors[i] = error * InputWeights[i];
 
                 // корректировка весов с учётом влияния входного значение
-                Weights[i] += gradient * lastInputs[i];
+                InputWeights[i] += gradient * lastInputs[i];
             }
+
+            for (int i = 0; i < LastOutputs.Count; i++)
+                OutputWeights[i] += gradient * LastOutputs[i];
 
             // корректировка смещения
             Bias += gradient;
@@ -89,8 +108,11 @@ namespace Test.Neural_Network
 
         public void Mutation(double deviation)
         {
-            for (int i = 0; i < Weights.Length; i++)
-                Weights[i] += Deviate(deviation);
+            for (int i = 0; i < InputWeights.Length; i++)
+                InputWeights[i] += Deviate(deviation);
+
+            for (int i = 0; i < OutputWeights.Length; i++)
+                OutputWeights[i] += Deviate(deviation);
 
             Bias += Deviate(deviation);
         }
@@ -101,9 +123,13 @@ namespace Test.Neural_Network
             Neuron child = Clone();
 
             // замена указаного процента весов сторонего нейрона на веса даного нейрона
-            for (int i = 0; i < Weights.Length; i++)
+            for (int i = 0; i < InputWeights.Length; i++)
                 if (rand.NextDouble() < dominance)
-                    child.Weights[i] = neuron.Weights[i];
+                    child.InputWeights[i] = neuron.InputWeights[i];
+
+            for (int i = 0; i < OutputWeights.Length; i++)
+                if (rand.NextDouble() < dominance)
+                    child.OutputWeights[i] = neuron.OutputWeights[i];
 
             if (rand.NextDouble() < dominance)
                 child.Bias = neuron.Bias;
@@ -113,28 +139,52 @@ namespace Test.Neural_Network
 
 
         //      [ Упаковка/разпаковка даных нейрона для записи в файл ]
-        public string Pack() => $"{string.Join(' ', Weights)} {Bias}";
+        public string Pack()
+        {
+            string pack = $"{Bias} {string.Join(" ", InputWeights)}";
+
+            if (OutputWeights.Length > 0)
+                pack += $"|{string.Join(" ", OutputWeights)}";
+
+            return pack;
+        }
+
+        double[] StringToDoubleArray(string line) => line.Split(' ').Select(str => double.Parse(str)).ToArray();
 
         public void Unpack(string pack)
         {
-            int biasStartIdx = pack.LastIndexOf(' ') + 1;
-            Bias = double.Parse(pack.Substring(biasStartIdx));
-            pack = pack.Remove(biasStartIdx - 1);
+            int firstSeparIdx = pack.IndexOf(' ');
+            Bias = double.Parse(pack.Substring(0, firstSeparIdx));
 
-            Weights = pack.Split(' ').Select(str => double.Parse(str)).ToArray();
+            int secondSeparIdx = pack.LastIndexOf('|');
+
+            if (secondSeparIdx == -1)
+            {
+                InputWeights = StringToDoubleArray(pack.Substring(firstSeparIdx + 1)); // 01-234-56
+                OutputWeights = new double[0];
+            }
+            else
+            {
+                InputWeights = StringToDoubleArray(pack.Substring(firstSeparIdx + 1, secondSeparIdx - firstSeparIdx - 1));
+                OutputWeights = StringToDoubleArray(pack.Substring(secondSeparIdx + 1));
+            }
         }
 
         #endregion
 
 
-        public Neuron(int inputsLength)
+        public Neuron(int inputsNumber, int memoryLength)
         {
-            Weights = new double[inputsLength];
+            InputWeights = new double[inputsNumber];
+            OutputWeights = new double[memoryLength];
 
             Random rand = new Random((int)DateTime.Now.Ticks);
 
-            for (int i = 0; i < Weights.Length; i++)
-                Weights[i] = rand.NextDouble();
+            for (int i = 0; i < inputsNumber; i++)
+                InputWeights[i] = rand.NextDouble();
+
+            for (int i = 0; i < memoryLength; i++)
+                OutputWeights[i] = rand.NextDouble();
 
             Bias = rand.NextDouble();
         }

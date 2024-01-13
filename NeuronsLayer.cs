@@ -11,7 +11,7 @@ namespace Test.Neural_Network
 
         Neuron[] Neurons;
 
-        public double[] LastInputs, LastOutputs;
+        public readonly double[] LastInputs, LastOutputs;
 
         public int NeuronsLength => Neurons.Length;
 
@@ -25,15 +25,12 @@ namespace Test.Neural_Network
         {
             double[] outputs = Neurons.Select(n => n.GetResult(inputs)).ToArray();
 
-            LastInputs = new double[inputs.Length];
             inputs.CopyTo(LastInputs, 0);
-
-            LastOutputs = new double[outputs.Length];
             outputs.CopyTo(LastOutputs, 0);
 
             return outputs;
         }
-        
+
         public NeuronsLayer Clone() => new NeuronsLayer { Neurons = Neurons.Select(n => n.Clone()).ToArray() };
 
 
@@ -43,8 +40,9 @@ namespace Test.Neural_Network
             // создание массива для ошибок предыдущего слоя и заполнение его нулями
             // [ количество весов любого нейрона
             //   соответствует количеству нейронов в предыдущем слое ]
-            double[] inputsErrors = new double[Neurons[0].WeightsLength];
-            Array.Fill(inputsErrors, 0);
+            double[] inputsErrors = new double[LastInputs.Length];
+
+            for (int i = 0; i < inputsErrors.Length; i++) inputsErrors[i] = 0;
 
             // тренировка нейронов
             for (int i = 0; i < Neurons.Length; i++)
@@ -99,12 +97,15 @@ namespace Test.Neural_Network
         #endregion
 
 
-        public NeuronsLayer(int neuronsNumber, int inputsNumber)
+        public NeuronsLayer(int neuronsNumber, int neuronMemoryLength, int inputsNumber)
         {
+            LastInputs = new double[inputsNumber];
+            LastOutputs = new double[neuronsNumber];
+
             Neurons = new Neuron[neuronsNumber];
 
             for (int i = 0; i < neuronsNumber; i++)
-                Neurons[i] = new Neuron(inputsNumber);
+                Neurons[i] = new Neuron(inputsNumber, neuronMemoryLength);
         }
 
         NeuronsLayer() { }

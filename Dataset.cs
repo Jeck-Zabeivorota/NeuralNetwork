@@ -10,7 +10,7 @@ namespace Test.Neural_Network
     public class Dataset
     {
         #region Fields
-        
+
         readonly List<double[]> Inputs = new List<double[]>();
         readonly List<double[]> Corrects = new List<double[]>();
 
@@ -39,7 +39,7 @@ namespace Test.Neural_Network
 
 
         #region Methods
-        
+
         public void Add(double[] inputs, double[] corrects)
         {
             Inputs.Add(inputs);
@@ -64,8 +64,8 @@ namespace Test.Neural_Network
             int dataIdx = 0;
             for (int i = 0; i < lines.Length; i += 2)
             {
-                lines[i] = string.Join(' ', Inputs[dataIdx]);
-                lines[i + 1] = string.Join(' ', Corrects[dataIdx++]);
+                lines[i] = string.Join(" ", Inputs[dataIdx]);
+                lines[i + 1] = string.Join(" ", Corrects[dataIdx++]);
             }
 
             File.WriteAllLines(path, lines);

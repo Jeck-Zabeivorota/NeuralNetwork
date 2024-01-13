@@ -12,7 +12,9 @@ namespace Test.Neural_Network
         NeuronsLayer[] Layers;
 
         public double LearningRate;
+        public int NeuronMemoryNumber { get; private set; }
         public int[] NeuronsMap { get; private set; }
+
         public int InputsLength => NeuronsMap[0];
         public int OutputsLength => NeuronsMap[NeuronsMap.Length - 1];
 
@@ -72,7 +74,7 @@ namespace Test.Neural_Network
                     for (int k = 0; k < corrects.Length; k++)
                         errors[k] = corrects[k] - results[k];
 
-                    
+
                     for (int k = Layers.Length - 1; k >= 0; k--)
                         errors = Layers[k].Training(errors, LearningRate);
                 }
@@ -158,15 +160,14 @@ namespace Test.Neural_Network
 
             List<string> lines = new List<string>
             {
-                string.Join(' ', NeuronsMap),
-                LearningRate.ToString()
+                $"{string.Join(" ", NeuronsMap)}|{NeuronMemoryNumber}|{LearningRate}"
             };
 
 
             foreach (NeuronsLayer layer in Layers)
             {
                 lines.AddRange(layer.Pack());
-                lines.Add("END LAYER");
+                lines.Add("---");
             }
 
             File.WriteAllLines(path, lines);
@@ -178,18 +179,21 @@ namespace Test.Neural_Network
 
             string[] lines = File.ReadAllLines(path);
 
+            string[] config = lines[0].Split('|');
 
-            NeuronsMap = lines[0].Split(' ').Select(str => int.Parse(str)).ToArray();
-            LearningRate = double.Parse(lines[1]);
-            BuildNet(NeuronsMap);
+            NeuronsMap = config[0].Split(' ').Select(str => int.Parse(str)).ToArray();
+            NeuronMemoryNumber = int.Parse(config[1]);
+            LearningRate = double.Parse(config[2]);
+
+            BuildNet(NeuronsMap, NeuronMemoryNumber);
 
 
             List<string> pack = new List<string>();
             int layerIdx = 0;
 
-            for (int i = 2; i < lines.Length; i++)
+            for (int i = 1; i < lines.Length; i++)
             {
-                if (lines[i] != "END LAYER")
+                if (lines[i] != "---")
                     pack.Add(lines[i]);
                 else
                 {
@@ -201,12 +205,17 @@ namespace Test.Neural_Network
 
 
         //      [ Инициализация нейросети ]
-        public void BuildNet(int[] neuronsMap)
+        public void BuildNet(int[] neuronsMap, int neuronMemoryNumber)
         {
             if (neuronsMap.Length < 2) throw new ArgumentException("\"neuronsMap\" must contain at least 2 elements");
 
             foreach (int neuronsNumber in neuronsMap)
-                if (neuronsNumber < 1) throw new ArgumentException("Each \"neuronsMap\" element must be greater than zero");
+                if (neuronsNumber < 1) throw new ArgumentException("\"neuronsMap\" must be greater than zero");
+
+            if (neuronMemoryNumber < 0)
+                throw new ArgumentException("\"neuronMemoryNumber\" must be equals or greater than zero");
+
+            NeuronMemoryNumber = neuronMemoryNumber;
 
             NeuronsMap = new int[neuronsMap.Length];
             neuronsMap.CopyTo(NeuronsMap, 0);
@@ -220,16 +229,16 @@ namespace Test.Neural_Network
             Layers = new NeuronsLayer[neuronsMap.Length - 1];
 
             for (int i = 0; i < Layers.Length; i++)
-                Layers[i] = new NeuronsLayer(neuronsMap[i + 1], neuronsMap[i]);
+                Layers[i] = new NeuronsLayer(neuronsMap[i + 1], neuronMemoryNumber, neuronsMap[i]);
         }
 
         #endregion
 
 
-        public NeuralNetwork(int[] neuronsMap, double learningRate = 0.01)
+        public NeuralNetwork(int[] neuronsMap, int neuronMemoryNumber = 0, double learningRate = 0.01)
         {
             LearningRate = learningRate;
-            BuildNet(neuronsMap);
+            BuildNet(neuronsMap, neuronMemoryNumber);
         }
 
         public NeuralNetwork(string path) => ReadFromFile(path);
